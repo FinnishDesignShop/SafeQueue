@@ -5,6 +5,7 @@ namespace tests\MaxBrokman\SafeQueue;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManager;
+use Doctrine\Persistence\ManagerRegistry;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Debug\ExceptionHandler as Handler;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -34,9 +35,9 @@ class WorkerTest extends \PHPUnit_Framework_TestCase
     private $dispatcher;
 
     /**
-     * @var EntityManager|m\MockInterface
+     * @var ManagerRegistry|m\MockInterface
      */
-    private $entityManager;
+    private $managerRegistry;
 
     /**
      * @var Connection|m\MockInterface
@@ -68,20 +69,17 @@ class WorkerTest extends \PHPUnit_Framework_TestCase
         $this->queueManager  = m::mock(QueueManager::class);
         $this->queue         = m::mock(Queue::class);
         $this->dispatcher    = m::mock(Dispatcher::class);
-        $this->entityManager = m::mock(EntityManager::class);
+        $this->managerRegistry = m::mock(ManagerRegistry::class);
         $this->dbConnection  = m::mock(Connection::class);
         $this->cache         = m::mock(Repository::class);
         $this->exceptions    = m::mock(Handler::class);
 
-        $this->worker = new Worker($this->queueManager, $this->dispatcher, $this->entityManager, $this->exceptions);
+        $this->worker = new Worker($this->queueManager, $this->dispatcher, $this->managerRegistry, $this->exceptions);
 
         $this->options = new WorkerOptions(0, 128, 0, 0, 0);
 
         // Not interested in events
         $this->dispatcher->shouldIgnoreMissing();
-
-        // EM always has connection available
-        $this->entityManager->shouldReceive('getConnection')->andReturn($this->dbConnection);
     }
 
     protected function tearDown()
@@ -102,6 +100,13 @@ class WorkerTest extends \PHPUnit_Framework_TestCase
         $this->queueManager->shouldReceive('getName')->andReturn('test');
 
         $this->queue->shouldReceive('pop')->andReturn(...$jobs);
+        
+        // Create 3 mock entity managers to test.
+        $this->managerRegistry->shouldReceive('getManagers')->andReturn([
+            'manager1' => m::mock(EntityManager::class),
+            'manager2' => m::mock(EntityManager::class),
+            'manager3' => m::mock(EntityManager::class),
+        ]);
     }
 
     public function testExtendsLaravelWorker()
@@ -116,17 +121,24 @@ class WorkerTest extends \PHPUnit_Framework_TestCase
         $job->shouldIgnoreMissing();
 
         $this->prepareToRunJob($job);
+        
+        $managers = $this->managerRegistry->getManagers();
+        $managerCount = count($managers);
 
-        // Must make sure em is open
-        $this->entityManager->shouldReceive('isOpen')->once()->andReturn(true);
+        // Must re-open db connection as many times as there are managers.
+        $this->dbConnection->shouldReceive('ping')->times($managerCount)->andReturn(false);
+        $this->dbConnection->shouldReceive('close')->times($managerCount);
+        $this->dbConnection->shouldReceive('connect')->times($managerCount);
 
-        // Em must be cleared
-        $this->entityManager->shouldReceive('clear')->once();
-
-        // Must re-open db connection
-        $this->dbConnection->shouldReceive('ping')->once()->andReturn(false);
-        $this->dbConnection->shouldReceive('close')->once();
-        $this->dbConnection->shouldReceive('connect')->once();
+        // Except all managers to receive the same checks.
+        foreach ($managers as $em) {
+            // EM must return a database connection.
+            $em->shouldReceive('getConnection')->andReturn($this->dbConnection);
+            // Must make sure EM is open.
+            $em->shouldReceive('isOpen')->once()->andReturn(true);
+            // EM must be cleared.
+            $em->shouldReceive('clear')->once();
+        }
 
         $this->worker->runNextJob('connection', 'queue', $this->options);
     }
