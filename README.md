@@ -1,8 +1,19 @@
+# Fork changes
+
+2022-01-13
+- Created a new branch: 0.4
+- Updated PHP requirement from >=5.6 to ^7.4.
+- Removed `php-cs-fixer` as it wasn't compatible with PHP 7.4, nor was it familiar.
+- Updated Composer dependencies.
+- Modified `Worker` class to work on an injected instance of `ManagerRegistry` instead of `EntityManager`. The worker
+  now handles all entity managers registered in the manager registry.
+  - This change was made because of hitting a pitfall where a certain queue job used a different manager, and the manager
+    wasn't being cleared before each execution. This caused the job to sometimes use stale data as it didn't query already
+    loaded entities from the database. It also caused "MySQL server has gone away" issues as the connection on that
+    manager wasn't checked by this module.
+
 ## SafeQueue
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/maxbrokman/safe-queue.svg)](https://packagist.org/packages/maxbrokman/safe-queue)
-[![Build Status](https://travis-ci.org/maxbrokman/SafeQueue.svg?branch=0.3)](https://travis-ci.org/maxbrokman/SafeQueue)
-[![Coverage Status](https://coveralls.io/repos/github/maxbrokman/SafeQueue/badge.svg?branch=0.3)](https://coveralls.io/github/maxbrokman/SafeQueue?branch=0.2)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 
 A Laravel Queue worker that's safe for use with Laravel Doctrine
@@ -20,13 +31,13 @@ Version | Supported Laravel Versions
 ------- | -------------------------- 
 0.1.* | 5.1, 5.2 
 0.2.* | ^5.3.16 
-0.3.* | ^5.4.9
+>=0.3.* | ^5.4.9
 
 #### How it Works
 
 SafeQueue overrides a small piece of Laravel functionality to make the queue worker daemon safe for use with Doctrine.
-It makes sure that the worker exits if the EntityManager is closed after an exception. For good measure it also clears the EM
-before working each job.
+It makes sure that the worker exits if any registered EntityManagers are closed after an exception.
+For good measure it also clears all registered managers before working each job.
 
 #### Installation
 
@@ -85,7 +96,3 @@ Run tests and style fixer.
 vendor/bin/php-cs-fixer fix
 vendor/bin/phpunit
 ```
-
-#### Maintenance
-
-I maintain this as part of my day job, please open any issues on Github
