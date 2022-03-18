@@ -9,14 +9,14 @@
         }
     ],
     "require": {
-        "php": "^7.4",
-        "illuminate/queue": "^5.4.9",
-        "laravel-doctrine/orm": "^1.0"
+        "php": ">=7.4",
+        "illuminate/queue": ">=5.4.9",
+        "laravel-doctrine/orm": ">=1.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^5.3",
-        "mockery/mockery": "^1.1",
-        "satooshi/php-coveralls": "^1.0"
+        "phpunit/phpunit": ">=5.3",
+        "mockery/mockery": ">=1.1",
+        "satooshi/php-coveralls": ">=1.0"
     },
     "autoload": {
         "psr-4": {
